@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekap Absensi - Kelas 12 RPL 1</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-chart-bar"></i> Rekap Absensi Kelas 12 RPL 1</h1>
+            <p>Data kehadiran siswa hari ini</p>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title"><i class="fas fa-table"></i> Data Kehadiran</h2>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Nama Siswa</th>
+                            <th>Status</th>
+                            <th>Waktu</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTable">
+                        <tr>
+                            <td colspan="4" class="text-center">
+                                <i class="fas fa-spinner fa-spin"></i> Memuat data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <button class="btn refresh-btn" onclick="loadAttendanceData()">
+                <i class="fas fa-sync"></i> Refresh Data
+            </button>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Sistem Absensi Kelas 12 RPL 1 &copy; 2024</p>
+    </div>
+
+    <script>
+        // Load attendance data
+        async function loadAttendanceData() {
+            try {
+                const response = await fetch('/api/rekap');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('attendanceTable');
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" style="text-align: center;">
+                                <i class="fas fa-info-circle"></i> Belum ada data absensi hari ini
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                tbody.innerHTML = '';
+                
+                data.forEach((student, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${student.name}</td>
+                        <td>
+                            <span class="status-badge status-${student.status.toLowerCase()}">
+                                ${student.status}
+                            </span>
+                        </td>
+                        <td>${student.time}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading attendance data:', error);
+                const tbody = document.getElementById('attendanceTable');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #f44336;">
+                            <i class="fas fa-exclamation-circle"></i> Gagal memuat data
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAttendanceData();
+            
+            // Refresh data every 30 seconds
+            setInterval(loadAttendanceData, 30000);
+        });
+    </script>
+</body>
+</html>

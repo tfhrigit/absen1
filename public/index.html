@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absensi Kelas 12 RPL 1</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-user-check"></i> Absensi Kelas 12 RPL 1</h1>
+            <p>Sistem absensi digital berbasis QR Code</p>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title"><i class="fas fa-clock"></i> Status Absensi</h2>
+            <div id="timeStatus" class="status-indicator">
+                Memuat status...
+            </div>
+            <div class="time-display">
+                <i class="fas fa-clock"></i> Waktu Sekarang: <span id="currentTime">-</span>
+            </div>
+            <button class="btn refresh-btn" onclick="checkTimeStatus()">
+                <i class="fas fa-sync"></i> Refresh Status
+            </button>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title"><i class="fas fa-qrcode"></i> Scan QR Code</h2>
+            <div class="scanner-container">
+                <div id="reader"></div>
+            </div>
+            <div id="scanResult" class="scan-result"></div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title"><i class="fas fa-user-graduate"></i> Pilih Siswa</h2>
+            <div class="form-group">
+                <label class="form-label">Nama Siswa:</label>
+                <select id="studentSelect" class="form-select" title="Pilih Nama Siswa">
+                    <option value="">Pilih siswa terlebih dahulu...</option>
+                </select>
+            </div>
+            <div class="qr-container">
+                <img id="qrCode" class="qr-code hidden" src="" alt="QR Code">
+                <div id="qrLoading" class="qr-loading">
+                    <i class="fas fa-spinner fa-spin"></i> Memuat QR Code...
+                </div>
+            </div>
+            <div id="manualResult"></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Sistem Absensi Kelas 12 RPL 1 &copy; 2024</p>
+    </div>
+
+    <script>
+        let html5QrCode;
+        let students = [];
+
+        // Load students
+        async function loadStudents() {
+            try {
+                const response = await fetch('/api/students');
+                students = await response.json();
+                
+                const select = document.getElementById('studentSelect');
+                select.innerHTML = '<option value="">Pilih siswa terlebih dahulu...</option>';
+                
+                students.forEach(student => {
+                    const option = document.createElement('option');
+                    option.value = student.id;
+                    option.textContent = student.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading students:', error);
+            }
+        }
+
+        // Check time status
+        async function checkTimeStatus() {
+            try {
+                const response = await fetch('/api/time-status');
+                const data = await response.json();
+                
+                const statusElement = document.getElementById('timeStatus');
+                const currentTimeElement = document.getElementById('currentTime');
+                
+                currentTimeElement.textContent = data.currentTime;
+                
+                if (data.withinTime) {
+                    statusElement.className = 'status-indicator status-active';
+                    statusElement.innerHTML = '<i class="fas fa-check-circle"></i> Absensi DIBUKA (06:00 - 07:15)';
+                } else {
+                    statusElement.className = 'status-indicator status-inactive';
+                    statusElement.innerHTML = '<i class="fas fa-times-circle"></i> Absensi DITUTUP (Hanya 06:00 - 07:15)';
+                }
+            } catch (error) {
+                console.error('Error checking time status:', error);
+            }
+        }
+
+        // Generate QR Code for selected student
+        document.getElementById('studentSelect').addEventListener('change', async function() {
+            const studentId = this.value;
+            const qrElement = document.getElementById('qrCode');
+            const loadingElement = document.getElementById('qrLoading');
+            
+            if (studentId) {
+                // Show loading
+                loadingElement.style.display = 'block';
+                qrElement.style.display = 'none';
+                
+                // Get fresh student data
+                try {
+                    const response = await fetch('/api/students');
+                    const freshStudents = await response.json();
+                    const student = freshStudents.find(s => s.id == studentId);
+                    
+                    if (student && student.qrCode) {
+                        qrElement.src = student.qrCode;
+                        qrElement.style.display = 'block';
+                        loadingElement.style.display = 'none';
+                    } else {
+                        loadingElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> QR Code tidak tersedia';
+                    }
+                } catch (error) {
+                    console.error('Error loading QR code:', error);
+                    loadingElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> Gagal memuat QR Code';
+                }
+            } else {
+                qrElement.style.display = 'none';
+                loadingElement.style.display = 'none';
+            }
+        });
+
+        // Handle QR scan result
+        function onScanSuccess(decodedText, decodedResult) {
+            console.log('QR Code scanned:', decodedText);
+            
+            // Extract student ID from QR code data
+            const parts = decodedText.split('-');
+            const studentId = parts[0];
+            
+            submitAttendance(studentId);
+        }
+
+        function onScanFailure(error) {
+            // Handle scan failure, ignore errors for now
+        }
+
+        // Initialize QR scanner
+        function initScanner() {
+            html5QrCode = new Html5Qrcode("reader");
+            
+            const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 }
+            };
+
+            html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                onScanSuccess,
+                onScanFailure
+            ).catch(err => {
+                console.error("Unable to start scanning", err);
+            });
+        }
+
+        // Submit attendance
+        async function submitAttendance(studentId) {
+            try {
+                const response = await fetch('/api/absen', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ studentId: studentId })
+                });
+                
+                const result = await response.json();
+                const resultElement = document.getElementById('scanResult');
+                
+                if (result.success) {
+                    resultElement.className = 'alert alert-success';
+                    resultElement.innerHTML = `<i class="fas fa-check-circle"></i> ${result.message}`;
+                } else {
+                    resultElement.className = 'alert alert-danger';
+                    resultElement.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${result.message}`;
+                }
+                
+                // Refresh time status
+                checkTimeStatus();
+            } catch (error) {
+                console.error('Error submitting attendance:', error);
+                const resultElement = document.getElementById('scanResult');
+                resultElement.className = 'alert alert-danger';
+                resultElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> Terjadi kesalahan saat memproses absensi';
+            }
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStudents();
+            checkTimeStatus();
+            initScanner();
+            
+            // Update time status every minute
+            setInterval(checkTimeStatus, 60000);
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (html5QrCode) {
+                html5QrCode.stop().catch(err => {
+                    console.error("Error stopping scanner", err);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
